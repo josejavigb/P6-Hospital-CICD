@@ -2,17 +2,18 @@ name: CI - Compile, Test & Coverage
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "master"]
+
+permissions:
+  contents: write
+  checks: write
+  pull-requests: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      checks: write
-      pull-requests: write
 
     steps:
       - name: Checkout
@@ -36,16 +37,20 @@ jobs:
 
       - name: Publish test report
         if: always()
-        uses: mikepenz/action-junit-report@v4
+        uses: ctrf-io/github-test-reporter@v1
         with:
-          report_paths: '**/target/*-reports/TEST-*.xml'
-          detailed_summary: true
+          report-path: './target/*-reports/*.xml'
+          github-report: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Jacoco badge
         id: jacoco
+        if: always()
         uses: cicirello/jacoco-badge-generator@v2
         with:
           generate-branches-badge: true
+          generate-summary: true
           jacoco-csv-file: target/site/jacoco/jacoco.csv
           badges-directory: .github/badges
 
@@ -70,10 +75,9 @@ jobs:
           name: jacoco-report
           path: target/site/jacoco/
 
-      - name: Commit and push badge
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add .github/badges/*.svg
-          git commit -m "Update coverage badge" || exit 0
-          git push
+      - name: Commit badge to repo
+        if: github.event_name == 'push'
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: '.github/badges'
+          message: 'Update coverage badges'
